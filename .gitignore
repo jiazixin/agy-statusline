@@ -1,0 +1,8 @@
+# 本地构建产物与发布快照
+/bin/
+/agy-statusline
+/agy-statusline.exe
+*.out
+
+# 编辑器与系统文件
+.DS_Store

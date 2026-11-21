@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Actions are pinned by commit; the comment names the reviewed tag.
+jobs:
+  go:
+    name: Go 检查与测试
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l $(git ls-files '*.go'))
+          [ -z "$unformatted" ] || { echo "$unformatted"; exit 1; }
+      - name: Vet all release platforms
+        run: |
+          for target in \
+            linux/amd64 linux/arm64 linux/386 linux/arm linux/loong64 \
+            linux/mips linux/mipsle linux/mips64 linux/mips64le \
+            linux/ppc64 linux/ppc64le linux/riscv64 linux/s390x \
+            darwin/amd64 darwin/arm64 \
+            windows/amd64 windows/arm64 windows/386; do
+            GOOS=${target%/*} GOARCH=${target#*/} go vet ./...
+          done
+      - name: Go 竞态测试
+        run: CGO_ENABLED=1 go test -race -count=1 ./...
+
+  release-snapshot:
+    name: GoReleaser 多目标快照构建
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.18.3
+          install-only: true
+      - run: goreleaser check
+      - run: goreleaser release --snapshot --clean

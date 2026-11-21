@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# Release artifacts for v* tags across Linux, macOS, and Windows architectures.
+version: 2
+
+project_name: agy-statusline
+
+# Kept under the ignored bin/ so the git tree stays clean.
+dist: bin/release
+
+builds:
+  - id: linux
+    main: .
+    binary: agy-statusline
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos: [linux]
+    goarch:
+      - amd64
+      - arm64
+      - "386"
+      - arm
+      - loong64
+      - mips
+      - mipsle
+      - mips64
+      - mips64le
+      - ppc64
+      - ppc64le
+      - riscv64
+      - s390x
+    goarm: ["6", "7"]
+    gomips: [hardfloat]
+
+  - id: darwin
+    main: .
+    binary: agy-statusline
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos: [darwin]
+    goarch: [amd64, arm64]
+
+  - id: windows
+    main: .
+    binary: agy-statusline
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos: [windows]
+    goarch: [amd64, arm64, "386"]
+
+archives:
+  - id: agy-statusline
+    ids: [linux, darwin, windows]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}"
+    files:
+      - README.md
+      - README.en.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot+{{ .ShortCommit }}"
+
+changelog:
+  sort: asc
+
+release:
+  prerelease: auto
