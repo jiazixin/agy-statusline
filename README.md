@@ -68,6 +68,7 @@ sha256sum --ignore-missing -c checksums.txt   # macOS 可用: shasum -a 256 --ig
 mkdir -p ~/.local/bin
 tar -xzf "agy-statusline_${ver}_${os}_${arch}.tar.gz" -C ~/.local/bin agy-statusline
 chmod +x ~/.local/bin/agy-statusline
+~/.local/bin/agy-statusline --version
 ```
 
 > macOS 预编译二进制未经公证。通过浏览器下载后如被 Gatekeeper 拦截，可执行 `xattr -d com.apple.quarantine ~/.local/bin/agy-statusline`。
@@ -110,13 +111,18 @@ Windows 用户填写实际的 `.exe` 路径（若已加入 `PATH` 也可直接�
 | 第二行左侧 | 订阅计划（`plan_tier`，非紧凑模式）、工作目录与 Git 分支/脏状态、子代理 / 任务 / 产物 / Sandbox 计数 |
 | 第二行右侧 | 按模型系列匹配的配额剩余百分比与重置倒计时、AI Credits（`⚡`） |
 
-### 环境变量
+### 命令行参数与环境变量
+
+- `-h` / `--help`：输出使用说明并退出（退出码 0）。
+- `-v` / `--version`：输出当前二进制版本与提交号（如 `agy-statusline v1.0.1 (revision=0123456789ab)`）并退出；源码包无 `.git` 时可通过 `-ldflags="-X main.version=v1.0.1"` 显式注入。
+- 传入未知参数时向 stderr 报错并返回退出码 2。
 
 | 变量 | 说明 |
 | --- | --- |
 | `COLORTERM` | 包含 `truecolor` 或 `24bit` 时启用 24 位真彩色输出 |
 | `TERM_PROGRAM` | 识别 iTerm2、Ghostty、WezTerm、Warp、VS Code、Kitty、Alacritty、Hyper、Rio、Tabby 并自动启用真彩色 |
-| `AGY_STATUS_DEBUG` | 设为 `1` 时将原始标准输入 JSON 写入 `/tmp/agy-statusline-debug.json`，便于排查字段格式 |
+| `WT_SESSION` | 在 Windows Terminal 中自动启用 24 位真彩色输出 |
+| `AGY_STATUS_DEBUG` | 设为 `1` 时将原始标准输入 JSON 写入系统临时目录下的 `agy-statusline-debug.json`（Linux `/tmp`、macOS `$TMPDIR`、Windows `%TEMP%`） |
 
 ## 支持的发布平台
 

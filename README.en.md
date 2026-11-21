@@ -68,6 +68,7 @@ sha256sum --ignore-missing -c checksums.txt   # on macOS: shasum -a 256 --ignore
 mkdir -p ~/.local/bin
 tar -xzf "agy-statusline_${ver}_${os}_${arch}.tar.gz" -C ~/.local/bin agy-statusline
 chmod +x ~/.local/bin/agy-statusline
+~/.local/bin/agy-statusline --version
 ```
 
 > macOS binaries are not notarized. If Gatekeeper blocks a browser download, run `xattr -d com.apple.quarantine ~/.local/bin/agy-statusline`.
@@ -110,13 +111,18 @@ On Windows, point `command` to your `agy-statusline.exe` path (or `"agy-statusli
 | Row 2, left | Plan tier (full mode), workspace directory & Git branch/dirty mark, subagents / tasks / artifacts / sandbox counts |
 | Row 2, right | Model-matched quota remaining percentages & reset countdowns, AI credits (`⚡`) |
 
-### Environment variables
+### CLI flags and environment variables
+
+- `-h` / `--help`: print usage to stdout and exit with status 0.
+- `-v` / `--version`: print the embedded binary version and revision (e.g. `agy-statusline v1.0.1 (revision=0123456789ab)`) and exit; for source tarballs without `.git`, pass `-ldflags="-X main.version=v1.0.1"`.
+- Unknown arguments print an error to stderr and exit with status 2.
 
 | Variable | Behavior |
 | --- | --- |
 | `COLORTERM` | Enables 24-bit TrueColor when containing `truecolor` or `24bit` |
 | `TERM_PROGRAM` | Auto-enables TrueColor for iTerm2, Ghostty, WezTerm, Warp, VS Code, Kitty, Alacritty, Hyper, Rio, and Tabby |
-| `AGY_STATUS_DEBUG` | When set to `1`, writes the raw `stdin` JSON payload to `/tmp/agy-statusline-debug.json` for debugging |
+| `WT_SESSION` | Auto-enables 24-bit TrueColor in Windows Terminal |
+| `AGY_STATUS_DEBUG` | When set to `1`, writes the raw `stdin` JSON payload to `agy-statusline-debug.json` in the system temp directory (`/tmp` on Linux, `$TMPDIR` on macOS, `%TEMP%` on Windows) |
 
 ## Supported release targets
 

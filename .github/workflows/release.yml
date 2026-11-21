@@ -30,6 +30,18 @@ jobs:
           cache: false
       - run: go vet ./...
       - run: go test -count=1 ./...
+      - name: 核对 tag 与内置版本
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          go build -trimpath -o "$RUNNER_TEMP/agy-statusline" .
+          got=$("$RUNNER_TEMP/agy-statusline" --version)
+          want="agy-statusline $TAG (revision=$(git rev-parse HEAD | cut -c1-12))"
+          if [ "$got" != "$want" ]; then
+            printf 'version mismatch\n  got:  %s\n  want: %s\n' "$got" "$want" >&2
+            exit 1
+          fi
+          echo "$got"
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser

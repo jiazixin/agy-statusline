@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,6 +23,81 @@ import (
 	"unicode"
 	"unicode/utf8"
 )
+
+const (
+	exitOK    = 0
+	exitUsage = 2
+)
+
+// version may be set via -ldflags "-X main.version=v1.0.0" for builds without VCS metadata.
+var version = "dev"
+
+const usageText = `Usage: agy-statusline [options]
+
+Custom two-line status bar for Antigravity CLI (agy).
+Reads a JSON status payload from stdin and writes the rendered status line to stdout.
+
+Options:
+  -h, --help       Show this help message and exit
+  -v, --version    Show version information and exit
+
+Environment:
+  COLORTERM        Contains "truecolor" or "24bit" to enable 24-bit color
+  TERM_PROGRAM     Auto-enables 24-bit color for supported terminals
+  WT_SESSION       Auto-enables 24-bit color in Windows Terminal
+  AGY_STATUS_DEBUG Set to 1 to dump raw stdin JSON to the system temp directory
+`
+
+type buildInfo struct {
+	Version  string
+	Revision string
+	Modified bool
+}
+
+func currentBuild() buildInfo {
+	info, _ := debug.ReadBuildInfo()
+	return readBuild(version, info)
+}
+
+func readBuild(release string, info *debug.BuildInfo) buildInfo {
+	var b buildInfo
+	var moduleVersion string
+	if info != nil {
+		moduleVersion = info.Main.Version
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				b.Revision = s.Value[:min(12, len(s.Value))]
+			case "vcs.modified":
+				b.Modified = s.Value == "true"
+			}
+		}
+	}
+	b.Version = cmp.Or(usableVersion(release), usableVersion(moduleVersion), b.Revision, "dev")
+	return b
+}
+
+func usableVersion(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "dev" || v == "(devel)" {
+		return ""
+	}
+	return v
+}
+
+func (b buildInfo) String() string {
+	var details []string
+	if b.Revision != "" && !strings.Contains(b.Version, b.Revision) {
+		details = append(details, "revision="+b.Revision)
+	}
+	if b.Modified {
+		details = append(details, "modified")
+	}
+	if len(details) == 0 {
+		return b.Version
+	}
+	return b.Version + " (" + strings.Join(details, ", ") + ")"
+}
 
 type rgb [3]int
 
@@ -63,6 +139,9 @@ var (
 func detectTrueColor() bool {
 	ct := strings.ToLower(os.Getenv("COLORTERM"))
 	if containsAny(ct, "truecolor", "24bit") {
+		return true
+	}
+	if os.Getenv("WT_SESSION") != "" {
 		return true
 	}
 	tp := strings.ToLower(os.Getenv("TERM_PROGRAM"))
@@ -774,10 +853,7 @@ func render(data map[string]any) string {
 
 	ws := asMap(data["workspace"])
 	cwd := cmp.Or(asString(ws["current_dir"]), asString(ws["current_directory"]), asString(data["cwd"]))
-	dirName := ""
-	if trimmed := strings.TrimRight(cwd, "/"); trimmed != "" {
-		dirName = filepath.Base(trimmed)
-	}
+	dirName := baseDirName(cwd)
 
 	vcs := asMap(data["vcs"])
 	branch := cmp.Or(asString(vcs["branch"]), asString(ws["git_branch"]))
@@ -866,6 +942,21 @@ func render(data map[string]any) string {
 	return strings.Join(lines, "\n")
 }
 
+func baseDirName(cwd string) string {
+	trimmed := strings.TrimRight(cwd, `/\`)
+	if trimmed == "" {
+		return ""
+	}
+	if i := strings.LastIndexAny(trimmed, `/\`); i >= 0 {
+		return trimmed[i+1:]
+	}
+	return trimmed
+}
+
+func debugFilePath() string {
+	return filepath.Join(os.TempDir(), "agy-statusline-debug.json")
+}
+
 func run(r io.Reader, w io.Writer) error {
 	raw, err := io.ReadAll(r)
 	if err != nil || len(strings.TrimSpace(string(raw))) == 0 {
@@ -873,7 +964,7 @@ func run(r io.Reader, w io.Writer) error {
 	}
 
 	if os.Getenv("AGY_STATUS_DEBUG") == "1" {
-		_ = os.WriteFile("/tmp/agy-statusline-debug.json", raw, 0o600)
+		_ = os.WriteFile(debugFilePath(), raw, 0o600)
 	}
 
 	var data map[string]any
@@ -891,8 +982,28 @@ func run(r io.Reader, w io.Writer) error {
 	return nil
 }
 
-func main() {
-	if err := run(os.Stdin, os.Stdout); err != nil {
-		fmt.Printf("%s✦ Antigravity%s\n", cLavender, reset)
+func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) > 0 {
+		if len(args) == 1 {
+			switch args[0] {
+			case "-h", "--help":
+				_, _ = fmt.Fprint(stdout, usageText)
+				return exitOK
+			case "-v", "--version":
+				_, _ = fmt.Fprintln(stdout, "agy-statusline", currentBuild())
+				return exitOK
+			}
+		}
+		_, _ = fmt.Fprintf(stderr, "agy-statusline: unknown argument: %s\nRun 'agy-statusline --help' for usage.\n", strings.Join(args, " "))
+		return exitUsage
 	}
+
+	if err := run(stdin, stdout); err != nil {
+		_, _ = fmt.Fprintf(stdout, "%s✦ Antigravity%s\n", cLavender, reset)
+	}
+	return exitOK
+}
+
+func main() {
+	os.Exit(runCLI(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }

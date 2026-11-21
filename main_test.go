@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"testing"
 )
@@ -103,4 +106,166 @@ func TestRunEmptyInputNoOutput(t *testing.T) {
 	if buf.Len() != 0 {
 		t.Fatalf("run(empty) wrote %q, want empty", buf.String())
 	}
+}
+
+func TestBaseDirName(t *testing.T) {
+	tests := []struct {
+		cwd  string
+		want string
+	}{
+		{"", ""},
+		{"/", ""},
+		{"///", ""},
+		{`\`, ""},
+		{"/Users/k/agy-statusline", "agy-statusline"},
+		{"/Users/k/agy-statusline/", "agy-statusline"},
+		{`C:\Users\k\agy-statusline`, "agy-statusline"},
+		{`C:\Users\k\agy-statusline\`, "agy-statusline"},
+		{"C:/Users/k/agy-statusline/", "agy-statusline"},
+		{`C:\`, "C:"},
+		{"C:/", "C:"},
+		{`\\server\share\`, "share"},
+		{"project", "project"},
+	}
+	for _, tc := range tests {
+		if got := baseDirName(tc.cwd); got != tc.want {
+			t.Errorf("baseDirName(%q) = %q, want %q", tc.cwd, got, tc.want)
+		}
+	}
+}
+
+func TestDetectTrueColor(t *testing.T) {
+	t.Run("windows terminal WT_SESSION", func(t *testing.T) {
+		t.Setenv("COLORTERM", "")
+		t.Setenv("TERM_PROGRAM", "")
+		t.Setenv("WT_SESSION", "00000000-0000-0000-0000-000000000000")
+		if !detectTrueColor() {
+			t.Fatal("detectTrueColor() = false with WT_SESSION set, want true")
+		}
+	})
+	t.Run("fallback without env", func(t *testing.T) {
+		t.Setenv("COLORTERM", "")
+		t.Setenv("TERM_PROGRAM", "")
+		t.Setenv("WT_SESSION", "")
+		if detectTrueColor() {
+			t.Fatal("detectTrueColor() = true with empty env, want false")
+		}
+	})
+}
+
+func TestDebugFilePath(t *testing.T) {
+	want := filepath.Join(os.TempDir(), "agy-statusline-debug.json")
+	if got := debugFilePath(); got != want {
+		t.Errorf("debugFilePath() = %q, want %q", got, want)
+	}
+}
+
+func TestReadBuild(t *testing.T) {
+	cases := []struct {
+		name    string
+		release string
+		info    *debug.BuildInfo
+		want    string
+	}{
+		{
+			name:    "release ldflags with revision",
+			release: "v1.0.1",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Version: "(devel)"},
+				Settings: []debug.BuildSetting{
+					{Key: "vcs.revision", Value: "0123456789abcdef"},
+				},
+			},
+			want: "v1.0.1 (revision=0123456789ab)",
+		},
+		{
+			name:    "module tag version clean",
+			release: "dev",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Version: "v1.0.1"},
+				Settings: []debug.BuildSetting{
+					{Key: "vcs.revision", Value: "0123456789abcdef"},
+					{Key: "vcs.modified", Value: "false"},
+				},
+			},
+			want: "v1.0.1 (revision=0123456789ab)",
+		},
+		{
+			name:    "pseudo version with modified",
+			release: "dev",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Version: "v1.0.1-0.20261121010000-0123456789ab"},
+				Settings: []debug.BuildSetting{
+					{Key: "vcs.revision", Value: "0123456789abcdef"},
+					{Key: "vcs.modified", Value: "true"},
+				},
+			},
+			want: "v1.0.1-0.20261121010000-0123456789ab (modified)",
+		},
+		{
+			name:    "no metadata fallback",
+			release: "dev",
+			info:    nil,
+			want:    "dev",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := readBuild(tc.release, tc.info).String(); got != tc.want {
+				t.Errorf("readBuild().String() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunCLI(t *testing.T) {
+	t.Run("help", func(t *testing.T) {
+		for _, flag := range []string{"-h", "--help"} {
+			var out, errBuf bytes.Buffer
+			if code := runCLI([]string{flag}, strings.NewReader(""), &out, &errBuf); code != exitOK {
+				t.Fatalf("runCLI(%q) = %d, want %d", flag, code, exitOK)
+			}
+			if !strings.Contains(out.String(), "Usage: agy-statusline") {
+				t.Errorf("runCLI(%q) stdout = %q, want usage", flag, out.String())
+			}
+			if errBuf.Len() != 0 {
+				t.Errorf("runCLI(%q) stderr = %q, want empty", flag, errBuf.String())
+			}
+		}
+	})
+	t.Run("version", func(t *testing.T) {
+		for _, flag := range []string{"-v", "--version"} {
+			var out, errBuf bytes.Buffer
+			if code := runCLI([]string{flag}, strings.NewReader(""), &out, &errBuf); code != exitOK {
+				t.Fatalf("runCLI(%q) = %d, want %d", flag, code, exitOK)
+			}
+			if !strings.HasPrefix(out.String(), "agy-statusline ") {
+				t.Errorf("runCLI(%q) stdout = %q, want agy-statusline prefix", flag, out.String())
+			}
+			if errBuf.Len() != 0 {
+				t.Errorf("runCLI(%q) stderr = %q, want empty", flag, errBuf.String())
+			}
+		}
+	})
+	t.Run("unknown arg", func(t *testing.T) {
+		var out, errBuf bytes.Buffer
+		if code := runCLI([]string{"--bogus"}, strings.NewReader(""), &out, &errBuf); code != exitUsage {
+			t.Fatalf("runCLI(--bogus) = %d, want %d", code, exitUsage)
+		}
+		if out.Len() != 0 {
+			t.Errorf("runCLI(--bogus) stdout = %q, want empty", out.String())
+		}
+		if !strings.Contains(errBuf.String(), "unknown argument") {
+			t.Errorf("runCLI(--bogus) stderr = %q, want unknown argument", errBuf.String())
+		}
+	})
+	t.Run("invalid stdin fallback", func(t *testing.T) {
+		var out, errBuf bytes.Buffer
+		if code := runCLI(nil, strings.NewReader("not-json"), &out, &errBuf); code != exitOK {
+			t.Fatalf("runCLI(invalid stdin) = %d, want %d", code, exitOK)
+		}
+		if !strings.Contains(out.String(), "Antigravity") {
+			t.Errorf("runCLI(invalid stdin) stdout = %q, want fallback", out.String())
+		}
+	})
 }
