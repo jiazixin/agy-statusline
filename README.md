@@ -20,10 +20,9 @@
 
 `agy-statusline` 从标准输入读取 Antigravity CLI 传入的 JSON 状态负载，并向标准输出渲染对齐的彩色双行状态栏。它仅依赖 Go 标准库，编译为单一静态可执行文件，启动开销极低，支持 Linux、macOS 和 Windows 多种架构。
 
-```text
-󰙴 Gemini 4 Neon (high) │ ━━──────── 21% 42k/200k │ cache 84%                             ◉ working  » auto
-󰆥 Ultra                │ 󰝰 agy-statusline   main* │ agents:2 tasks:3     5h 85%·3h35m  wk 72%·4d4h  ⚡120
-```
+<p align="center">
+  <img src="assets/preview.png" alt="agy-statusline 终端状态栏预览">
+</p>
 
 > 终端中安装并启用 Nerd Font 时，模型、订阅计划、目录与 Git 分支图标会正常显示。
 
@@ -188,6 +187,7 @@ main_test.go             单元测试（宽字符计算、上下文/配额边界
 go.mod                   Go 模块定义（零外部依赖）
 .goreleaser.yaml         GoReleaser 多平台多架构打包与发布配置
 .github/workflows/       GitHub Actions CI 与 v* 标签自动发布工作流
+assets/                  README 展示截图
 README.md                简体中文说明
 README.en.md             English README
 ```

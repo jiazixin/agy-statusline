@@ -20,10 +20,9 @@
 
 `agy-statusline` reads the JSON status payload from `stdin` provided by Antigravity CLI and renders an aligned, two-line color status bar to `stdout`. Built solely on the Go standard library as a single static binary, it starts instantly and supports multiple architectures across Linux, macOS, and Windows.
 
-```text
-󰙴 Gemini 4 Neon (high) │ ━━──────── 21% 42k/200k │ cache 84%                             ◉ working  » auto
-󰆥 Ultra                │ 󰝰 agy-statusline   main* │ agents:2 tasks:3     5h 85%·3h35m  wk 72%·4d4h  ⚡120
-```
+<p align="center">
+  <img src="assets/preview.png" alt="agy-statusline preview">
+</p>
 
 > Install and enable a Nerd Font in your terminal so the model, plan tier, directory, and Git branch icons render properly.
 
@@ -188,6 +187,7 @@ main_test.go             Unit tests (display width, context/quota edge cases, pa
 go.mod                   Go module definition (zero external dependencies)
 .goreleaser.yaml         GoReleaser multi-OS / multi-architecture build and release config
 .github/workflows/       GitHub Actions CI and v* tag release workflows
+assets/                  README preview screenshot
 README.md                Simplified Chinese README
 README.en.md             English README
 ```
